@@ -1,0 +1,7 @@
+/.idea
+/venv
+/**/runs
+
+/data
+/checkpoints
+/**/__pycache__/
