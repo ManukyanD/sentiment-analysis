@@ -14,9 +14,9 @@ summary_writer = SummaryWriter()
 
 
 def fit(args, model, train_loader, test_loader, tokenize_fn, optimizer, scheduler):
+    running_loss = 0
+    accurate_predictions = 0
     for epoch in range(1, args.epochs + 1):
-        total_loss = 0
-        accurate_predictions = 0
         model.train()
         for index, batch in enumerate(train_loader):
             model.zero_grad()
@@ -24,41 +24,47 @@ def fit(args, model, train_loader, test_loader, tokenize_fn, optimizer, schedule
             x = to_device(tokenize_fn(x))
             y = to_device(y)
             loss, logits = model(x, attention_mask=(x > 0), labels=y, return_dict=False)
-            total_loss += loss.item()
+            running_loss += loss.item()
             accurate_predictions += (torch.argmax(logits, dim=1) == torch.argmax(y, dim=1)).sum().item()
-
             loss.backward()
             optimizer.step()
             scheduler.step()
-            if (index + 1) % 10 == 0:
-                print(
-                    f'Batches: up to {index + 1}, '
-                    f'Loss: {total_loss / (index + 1)}, '
-                    f'Accuracy: {round(accurate_predictions / (args.batch_size * (index + 1)) * 100, 2)} %')
-        report('Training', total_loss / len(train_loader), accurate_predictions / len(train_loader) / args.batch_size,
-               epoch)
+            step = (epoch - 1) * len(train_loader) + index + 1
+            if step % 10 == 0:
+                avg_loss = running_loss / 10
+                avg_accuracy = accurate_predictions / (10 * args.batch_size)
+                report(avg_loss, avg_accuracy, step)
+                checkpoint(epoch, model, args.checkpoints_dir)
+                running_loss = 0
+                accurate_predictions = 0
         evaluate(epoch, model, test_loader, tokenize_fn, args.batch_size)
-        checkpoint(epoch, model, args.checkpoints_dir)
 
 
 def evaluate(epoch, model, test_loader, tokenize_fn, batch_size):
     model.eval()
-    test_loss = 0
+    total_loss = 0
     accurate_predictions = 0
     with torch.no_grad():
-        for batch in test_loader:
+        for index, batch in enumerate(test_loader):
             x, y = batch
             x = to_device(tokenize_fn(x))
             y = to_device(y)
             loss, logits = model(x, attention_mask=(x > 0), labels=y, return_dict=False)
-            test_loss += loss.item()
+            total_loss += loss.item()
             accurate_predictions += (torch.argmax(logits, dim=1) == torch.argmax(y, dim=1)).sum().item()
-    report('Testing', test_loss / len(test_loader), accurate_predictions / len(test_loader) / batch_size, epoch)
+            batch_num = index + 1
+            if batch_num % 10 == 0:
+                print(
+                    f'Epoch: {epoch}, '
+                    f'Test batch: up to {batch_num}, '
+                    f'Loss: {total_loss / batch_num}, '
+                    f'Accuracy: {round(accurate_predictions / (batch_num * batch_size) * 100, 2)} %')
 
 
-def report(phase, loss, accuracy, epoch):
-    summary_writer.add_scalar(f'{phase} loss', loss, epoch)
-    print(f'Phase: {phase}, Epoch: {epoch}, Loss: {loss}, Accuracy: {round(accuracy * 100, 2)} %')
+def report(loss, accuracy, step):
+    summary_writer.add_scalar(f'Train/Loss', loss, step)
+    summary_writer.add_scalar(f'Train/Accuracy', accuracy, step)
+    print(f'Step: {step}, Loss: {loss}, Accuracy: {round(accuracy * 100, 2)} %')
 
 
 def checkpoint(epoch_num, model, checkpoint_dir):
@@ -83,6 +89,7 @@ def main():
                                                 num_training_steps=len(train_loader) * args.epochs)
 
     fit(args, model, train_loader, test_loader, tokenize_fn, optimizer, scheduler)
+    summary_writer.close()
 
 
 if __name__ == '__main__':
