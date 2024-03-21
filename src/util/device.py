@@ -8,4 +8,6 @@ if torch.cuda.is_available():
 def to_device(data):
     if isinstance(data, (list, tuple)):
         return [to_device(x) for x in data]
-    return data.to(device, non_blocking=True)
+    if isinstance(data, dict):
+        return {key: to_device(value) for key, value in data.items()}
+    return data.to(device)

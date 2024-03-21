@@ -3,7 +3,7 @@ import os.path
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Sentiment Analysis')
+    parser = argparse.ArgumentParser(description='Sentiment Analysis Training')
 
     parser.add_argument('--checkpoints-dir', type=str, default=os.path.join('.', 'checkpoints'),
                         help='The directory to save checkpoints to (default: "./checkpoints").')

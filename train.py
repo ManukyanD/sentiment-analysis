@@ -23,7 +23,7 @@ def fit(args, model, train_loader, test_loader, tokenize_fn, optimizer, schedule
             x, y = batch
             x = to_device(tokenize_fn(x))
             y = to_device(y)
-            loss, logits = model(x, attention_mask=(x > 0), labels=y, return_dict=False)
+            loss, logits = model(**x, labels=y, return_dict=False)
             running_loss += loss.item()
             accurate_predictions += (torch.argmax(logits, dim=1) == torch.argmax(y, dim=1)).sum().item()
             loss.backward()
@@ -49,7 +49,7 @@ def evaluate(epoch, model, test_loader, tokenize_fn, batch_size):
             x, y = batch
             x = to_device(tokenize_fn(x))
             y = to_device(y)
-            loss, logits = model(x, attention_mask=(x > 0), labels=y, return_dict=False)
+            loss, logits = model(**x, labels=y, return_dict=False)
             total_loss += loss.item()
             accurate_predictions += (torch.argmax(logits, dim=1) == torch.argmax(y, dim=1)).sum().item()
             batch_num = index + 1
@@ -68,7 +68,7 @@ def report(loss, accuracy, step):
 
 
 def checkpoint(epoch_num, model, checkpoint_dir):
-    torch.save(model, os.path.join(checkpoint_dir, f'epoch-{epoch_num}.pt'))
+    model.save_pretrained(os.path.join(checkpoint_dir, f'epoch-{epoch_num}'))
 
 
 def main():
